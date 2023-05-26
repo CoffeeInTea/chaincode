@@ -77,6 +77,13 @@ type txRecord struct {
 	Result      string `json:"result"`      //结果
 }
 
+type InfoColSys struct{
+	Sys_num       string `json: "sys_num"`     //系统编号
+	Timestamp     string `json: "timestamp"`   //时间戳
+	State  		  string `json: "state"`       //系统状态
+	ChannelID     string `json: "channelID"`   //链标识
+}
+
 //写入账本
 func putAttr(stub shim.ChaincodeStubInterface, attr Attr) bool {
 	b, err := json.Marshal(attr)
@@ -400,4 +407,18 @@ func (t *AttrChaincode) info_col_sys_read(stub shim.ChaincodeStubInterface, args
 	json_get, _ :=stub.GetState(args[0])
 	return shim.Success([]byte(json_get))
 
+}
+
+//写入系统状态
+func putInfoColSys(stub shim.ChaincodeStubInterface, infoColSys InfoColSys) bool {
+	b, err := json.Marshal(infoColSys)
+	if err != nil {
+		return false
+	}
+
+	err = stub.PutState(infoColSys.Sys_num, b)
+	if err != nil {
+		return false
+	}
+	return true
 }
