@@ -274,6 +274,7 @@ func (t *AttrChaincode) attrPolicy(stub shim.ChaincodeStubInterface, args []stri
 	attr_weight_map := map[string]int{
 		"教务管理": 2,
    		"学籍管理": 2,
+		"学区管理": 3,
  		"教材管理": 3,
 		"铁路管理": 13,
 		"教学管理": 11,
