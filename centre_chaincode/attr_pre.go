@@ -55,7 +55,155 @@ func (t *AttrChaincode) Invoke(stub shim.ChaincodeStubInterface) peer.Response {
 	return shim.Error("指定的函数名称错误")
 }
 
+func isKeyword(str string) bool {
+	if str == "(" || str == ")" || str == "AND" || str == "OR" || str == "and" || str == "or" {
+		return true
+	}
+	return false
+}
+
+func parseTokens(_expr string) []string {
+	expr := []rune(_expr)
+	temp := ""
+	for i := 0; i < len(expr); i++ {
+		if expr[i] == '(' || expr[i] == ')' || expr[i] == ' ' {
+			if temp != "" {
+				tokens = append(tokens, temp)
+				temp = ""
+			}
+			if expr[i] != ' ' {
+				tokens = append(tokens, string(expr[i]))
+			}
+		} else {
+			temp += string(expr[i])
+			if isKeyword(temp) {
+				tokens = append(tokens, temp)
+				temp = ""
+			}
+		}
+	}
+	if temp != "" {
+		tokens = append(tokens, temp)
+	}
+	return tokens
+}
+
+type TreeNode struct {
+	IsOP  bool
+	Val   string
+	Left  *TreeNode
+	Right *TreeNode
+}
+
+func priority(op string) int {
+	if op == "OR" {
+		return 1
+	} else if op == "AND" {
+		return 2
+	}
+	return -1
+}
+
+func infixToExpressionTree(tokens []string) *TreeNode {
+	exprstk := make([]*TreeNode, 0)
+	opstk := make([]string, 0)
+
+	for i := 0; i < len(tokens); i++ {
+		element := tokens[i]
+		if element == "and" {
+			element = "AND"
+		}
+		if element == "or" {
+			element = "OR"
+		}
+		if !isKeyword(element) {
+			node := &TreeNode{
+				Val: element,
+			}
+			exprstk = append(exprstk, node)
+		} else if element == "(" {
+			opstk = append(opstk, element)
+		} else if element == ")" {
+			for opstk[len(opstk)-1] != "(" {
+				nr := exprstk[len(exprstk)-1]
+				nl := exprstk[len(exprstk)-2]
+				op := opstk[len(opstk)-1]
+				node := &TreeNode{
+					IsOP:  true,
+					Val:   op,
+					Left:  nl,
+					Right: nr,
+				}
+				exprstk = exprstk[:len(exprstk)-2]
+				opstk = opstk[:len(opstk)-1]
+				exprstk = append(exprstk, node)
+			}
+			opstk = opstk[:len(opstk)-1]
+		} else {
+			if len(opstk) == 0 || opstk[len(opstk)-1] == "(" || priority(opstk[len(opstk)-1]) < priority(element) {
+			} else {
+				nr := exprstk[len(exprstk)-1]
+				nl := exprstk[len(exprstk)-2]
+				op := opstk[len(opstk)-1]
+				node := &TreeNode{
+					IsOP:  true,
+					Val:   op,
+					Left:  nl,
+					Right: nr,
+				}
+				exprstk = exprstk[:len(exprstk)-2]
+				opstk = opstk[:len(opstk)-1]
+				exprstk = append(exprstk, node)
+			}
+			opstk = append(opstk, element)
+		}
+
+	}
+	return exprstk[0]
+}
+
+var weight map[string]int
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func calc(root *TreeNode) int {
+	if !root.IsOP {
+		if _,ok := weight[root.Val];!ok{
+			return 1
+		}
+		return weight[root.Val]
+	} else if root.Val == "AND" {
+		return calc(root.Left) + calc(root.Right)
+	} else {
+		return min(calc(root.Left), calc(root.Right))
+	}
+}
+
+func policy_safety_level(policy string)int{
+	expr := "(" + policy + ")"
+	tokens = parseTokens(expr)
+	root = infixToExpressionTree(tokens)
+	return calc(root)
+}
+
+
 func main() {
+	weight = map[string]int{
+		"教务管理": 2,
+   		"学籍管理": 2,
+		"学区管理": 3,
+ 		"教材管理": 3,
+		"铁路管理": 13,
+		"教学管理": 11,
+   		"物流管理": 12,
+		"公交管理": 5,
+		"税务管理": 15,
+	}
 	err := shim.Start(new(AttrChaincode))
 	if err != nil {
 		fmt.Printf("starting chaincode go wrong: %s", err)
@@ -266,61 +414,9 @@ func (t *AttrChaincode) attrPolicy(stub shim.ChaincodeStubInterface, args []stri
 	pol.BlockTxId = args[start_num]
 	start_num += 1
 	//策略录入
-	for i := start_num; i < len(args); i++ {
-		pol.Attr_array = append(pol.Attr_array, args[i])
-	}
+	pol.Attr_array = append(pol.Attr_array, args[start_num])
 	//计算策略的安全等级 start
-	// 定义属性权重列表
-	attr_weight_map := map[string]int{
-		"教务管理": 2,
-   		"学籍管理": 2,
-		"学区管理": 3,
- 		"教材管理": 3,
-		"铁路管理": 13,
-		"教学管理": 11,
-   		"物流管理": 12,
-		"公交管理": 5,
-		"税务管理": 15,
-	}
-	// 定义数据权限，默认权限为 0
-	weight := 100
-	// 对属性集进行遍历
-	for _, attrs := range pol.Attr_array{
-		flag := 0
-		temp := 0
-		var attrs1 []string
-		var str []byte
-		for ii := 0; ii < len(attrs); ii++{
-			
-			if attrs[ii] == '&' && flag == 0{
-				flag = 1
-				continue
-			}else if attrs[ii] == '&' && flag == 1{
-				flag = 0
-				continue
-			}else if flag == 0 && attrs[ii] != ' ' || ii == len(attrs) - 1{
-				str = append(str, attrs[ii])
-				// fmt.Println(string(str))
-			}else if flag == 0 && attrs[ii] == ' '{
-				// fmt.Printf(string(str))
-				attrs1 = append( attrs1, string(str))
-				str = str[0:0]
-			}
-		}
-		if len(str) != 0{
-			attrs1 = append( attrs1, string(str))
-		}
-		fmt.Println(attrs1)
-		for _, attr := range attrs1 {
-			temp += attr_weight_map[attr]
-		}
-		if temp < weight{
-			weight = temp
-		}
-	}
-	if weight == 0{
-		weight = 1
-	}
+	weight := policy_safety_level(Attr_array[0])
     pol.Safty_level = weight
 	// pol.Safty_level = len(pol.Attr_array)
 	//计算策略的安全等级 end
