@@ -65,6 +65,7 @@ func isKeyword(str string) bool {
 func parseTokens(_expr string) []string {
 	expr := []rune(_expr)
 	temp := ""
+	tokens := make([]string, 0)
 	for i := 0; i < len(expr); i++ {
 		if expr[i] == '(' || expr[i] == ')' || expr[i] == ' ' {
 			if temp != "" {
@@ -186,8 +187,8 @@ func calc(root *TreeNode) int {
 
 func policy_safety_level(policy string)int{
 	expr := "(" + policy + ")"
-	tokens = parseTokens(expr)
-	root = infixToExpressionTree(tokens)
+	tokens := parseTokens(expr)
+	root := infixToExpressionTree(tokens)
 	return calc(root)
 }
 
@@ -416,7 +417,7 @@ func (t *AttrChaincode) attrPolicy(stub shim.ChaincodeStubInterface, args []stri
 	//策略录入
 	pol.Attr_array = append(pol.Attr_array, args[start_num])
 	//计算策略的安全等级 start
-	weight := policy_safety_level(Attr_array[0])
+	weight := policy_safety_level(pol.Attr_array[0])
     pol.Safty_level = weight
 	// pol.Safty_level = len(pol.Attr_array)
 	//计算策略的安全等级 end
